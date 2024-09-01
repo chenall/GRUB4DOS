@@ -2690,7 +2690,7 @@ uninstall (unsigned int drive, struct grub_disk_data *d)  //释放磁盘映射
    
   //卸载映射内存
   if (d->to_drive == 0xff && d->to_log2_sector != 0xb)  //内存映射
-    efi_call_2 (b->free_pages, d->start_sector >> 9, d->sector_count >> 3);	//释放页
+    efi_call_2 (b->free_pages, d->start_sector << 9, d->sector_count >> 3);	//释放页   2024-09-01
       
   //卸载虚拟磁盘
   if (d->vdisk)  //是映射磁盘,并且挂载
@@ -3029,7 +3029,8 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 	//动态vhd处理
 	if (df->vhd_disk & 1 && !vhd_read)	//vhd不加载到内存，并且不是dec_vhd读磁盘
 	{
-		filepos = sector << 9;
+//		filepos = sector << 9;
+    filepos = lba_byte;   //2024-09-01
 		dec_vhd_read ((unsigned long long)(grub_size_t)buf, (unsigned long long)size, read_write);
 		return 0;
 	}
@@ -4777,7 +4778,7 @@ grub_load_image (grub_efi_device_path_t *path, const char *filename, void *boot_
     grub_efi_print_device_path(boot_file);
   if (!boot_image)
   {
-		//加载映像	将EFI映像加载到内存中  要读磁盘
+		//加载映像	将EFI映像加载到内存中  此函数要读磁盘
       status = efi_call_6 (b->load_image, TRUE, 			//启动策略. 如果为true，则表示请求来自引导管理器，并且引导管理器正尝试将设备路径作为引导选择加载 
                             grub_efi_image_handle,		//调用方的映像句柄. 此字段用于为正在加载的映像初始化EFI加载的映像协议的父句柄字段。
                             boot_file,                //从中加载映像的设备句柄特定文件路径

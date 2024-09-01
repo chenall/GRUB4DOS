@@ -7471,6 +7471,7 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
   int prefer_top = 0;
   int no_hook = 0;
   int vhd_disk = 0;
+  int alloc_only = 0;
   vhd_start_sector = 0;
 
   //struct master_and_dos_boot_sector *BS = (struct master_and_dos_boot_sector *) RAW_ADDR (0x8000);
@@ -7863,6 +7864,10 @@ struct drive_map_slot
     else if (grub_memcmp (arg, "--swap-drive=", 13) == 0)
     {
       return 1; 
+    }
+    else if (grub_memcmp (arg, "--alloc-only", 12) == 0)  //仅分配内存，不用复制  2024-09-01
+    {
+      alloc_only = 1; 
     }
     else
 			break;
@@ -8556,11 +8561,49 @@ get_info_ok:
       if (status != GRUB_EFI_SUCCESS)	//如果失败
       {
         printf_errinfo ("out of map memory: %d\n",(int)status);
+        errnum = ERR_WONT_FIT;   //2024-09-01
         return 0;
       }
     }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////以上插入分配内存
+/*
+VHD测试
+镜像：qbus_gd.vhd 716Mb(包含qbus)；qbus_dt.vhd 642Mb；hdd_boot_gd.vhd(无qbus)
+环境：QEMU虚拟机； VirtualBox虚拟机；  笔记本电脑。
+条件1：不加载到内存/加载到内存
+条件2：使用grub_read读文件簇/使用read_blocks读碎片块
+条件3：U盘/SSD固态盘
+--------------------------------------------------------------------------------------------------------------
+环境            镜像              条件1        条件2        条件3      启动时间(秒)  说明
+--------------------------------------------------------------------------------------------------------------
+QEMU            hdd_boot_gd.vhd   map                                                 可以正常启动
+QEMU            qbus_gd.vhd       map                                                 可以正常启动
+QEMU            qbus_gd.vhd       map --mem    grub_read    U盘        167
+QEMU            qbus_gd.vhd       map --mem    read_blocks  U盘        94
+QEMU            qbus_dt.vhd       map                                                 不能启动
+QEMU            qbus_dt.vhd       map --mem    grub_read    U盘        93
+--------------------------------------------------------------------------------------------------------------
+VirtualBox      hdd_boot_gd.vhd   map                                                 可以正常启动
+VirtualBox      qbus_gd.vhd       map                                                 不能启动(一直转圈)
+VirtualBox      qbus_gd.vhd       map --mem    grub_read    U盘        503
+VirtualBox      qbus_gd.vhd       map --mem    read_blocks  U盘        150
+--------------------------------------------------------------------------------------------------------------
+笔记本电脑      hdd_boot_gd.vhd   map                                                 可以正常启动
+笔记本电脑      qbus_gd.vhd       map                                                 不能启动(转圈之后重启)
+笔记本电脑      qbus_gd.vhd       map --mem    grub_read    U盘        85
+笔记本电脑      qbus_gd.vhd       map --mem    read_blocks  U盘        82
+笔记本电脑      qbus_gd.vhd       map --mem    grub_read    SSD固态盘  2
+笔记本电脑      qbus_gd.vhd       map --mem    read_blocks  SSD固态盘  1
+--------------------------------------------------------------------------------------------------------------
+
+结论：
+1. 加载速度取决于UEFI固件。实机区别不大，虚拟机有改进。
+2. 静态VHD映射为硬盘，可以是内存盘，也可以不是。可以使用chainloader加载，也可以使用ntboot加载。
+3. 动态/差分VHD使用chainloader加载，必须映射为内存盘。
+4. 动态/差分VHD使用ntboot加载，内部必须包含BCD。
+
+*/
 mem_ok:
 		sector_count = bytes_needed >> 9;			//扇区计数=加载到内存的扇区数，每扇区0x200字节
 //    sector_count = bytes_needed >> buf_geom.log2_sector_size;			//扇区计数=需要扇区 
@@ -8569,9 +8612,47 @@ mem_ok:
 	  if ((to == 0xffff || to == ram_drive) && !compressed_file) //如果映像在内存中，并且没有压缩，我们可以简单地移动它。
 		{
 //			if (bytes_needed != start_byte)	//如果需要字节!=起始字节
+      if (!alloc_only)  //不是仅分配   2024-09-01
+      {
+        printf ("Copying data, please wait......\n");
         grub_memmove64 (alloc, start_byte, filemax);
+      }
 		}
-		else	//如果映像不在内存中，或者被压缩
+    else if (!compressed_file)  //如果映像不在内存，而且没有压缩(img,iso,静态vhd)，使用读碎片块方法  2024-09-01  加快静态vhd的读取速度
+    {
+      //在QEMU虚拟机测试qbus_gd.vhd，716Mb，用时94秒。如果使用grub_read函数，用时167秒。94/167=56%
+      //在QEMU虚拟机测试qbus_dt.vhd，642Mb，用时93秒。
+      //在实机测试qbus_gd.vhd(ssd固态硬盘)，716Mb，用时1秒。如果使用grub_read函数，用时2秒。
+      //在实机测试qbus_gd.vhd(2.0启动U盘)，716Mb，用时82秒。如果使用grub_read函数，用时85秒。
+      //在Qracle VM虚拟机测试qbus_gd.vhd，716Mb，用时150秒。如果使用grub_read函数，用时503秒。150/503=30%
+      //静态VHD(内涵qbus)不加载到内存，QEMU虚拟机可以启动成功，Qracle VM虚拟机一直转圈，实机转圈后重启。
+      unsigned long long add = alloc;     //内存扇区地址
+			filepos = skip_sectors << 9;
+
+      for (k = 0; k < blklst_num_entries; k++)
+      {
+        struct grub_disk_data *d = 0;
+        grub_efi_block_io_t *bio = 0;
+        d = get_device_by_drive (to,0);
+        if (!d)
+          return (!(errnum = ERR_NO_DISK));
+        bio = d->block_io;	//块io
+        printf ("Copying data, please wait......\n");
+        status = efi_call_5 (bio->read_blocks, bio, bio->media->media_id, (grub_efi_uint64_t) map_start_sector[k],
+            (grub_efi_uintn_t) map_num_sectors[k] << 9, (char *)(grub_size_t)add);	//读写(读,本身块io,media_id,扇区,字节尺寸,缓存)
+        if (status)	//如果错误
+        {
+          grub_close ();     //关闭to驱动器
+          errnum = ERR_READ;
+          return 0;
+        }
+
+        add += map_num_sectors[k] << 9;
+        filepos += map_num_sectors[k] << 9;
+      }
+      blklst_num_entries = 1; //如果文件有碎片，加载到内存后就连续了。避免后续设置碎片。
+    }   
+		else	//如果映像不在内存，而且被压缩，使用读文件簇方法
 		{
 	    unsigned long long read_result;	//读结果
 	    unsigned long long read_size = bytes_needed;        //读尺寸

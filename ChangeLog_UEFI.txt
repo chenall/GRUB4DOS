@@ -1,4 +1,12 @@
 ﻿更新说明：
+2024-09-01 (yaya)
+  修正函数 map --unmap=
+  增加参数 map --alloc-only，用于批处理分配自由内存。
+  例如：map --alloc-only (md)0+0x1b61b0 (3) //分配0x1b61b0扇区自由扇区
+        map --status=3
+        set add=%?%  //返回分配的自由内存
+  加快非压缩文件(img,iso,静态vhd)加载到虚拟机内存的速度。
+
 2024-02-26 (yaya)
   改进uuid/vol函数，支持10个以上分区。
 
