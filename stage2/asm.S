@@ -527,12 +527,12 @@ VARIABLE(pxe_tftp_open) //PXENV_TFTP_OPEN_t
 	.space	128		# FileName[128];	文件名
 	.word	0		# TFTPPort						TFTP端口
 	.word	0		# PacketSize					包尺寸
-
+/*
 //boot.c
 	.align	8
 VARIABLE(mbi) //multiboot_info
 	.space	(22 * 4)
-	
+*/	
 
 /****************************************************************************/
 /************************* 32-bit functions follow **************************/
@@ -656,7 +656,7 @@ VARIABLE(system_functions)                            //IMG(0x8300)
 	.extent	ABS(EXT_C(dir))                               //61
 	.extent	ABS(EXT_C(print_a_completion))                //62
 	.extent	ABS(EXT_C(print_completions))                 //63
-	.extent	ABS(EXT_C(devread))                           //64
+	.extent	0                                             //64
 	.extent	ABS(EXT_C(probe_bpb))                         //65
 	.extent	ABS(EXT_C(probe_mbr))                         //66
 	.extent	ABS(EXT_C(unicode_to_utf8))                   //67
@@ -726,7 +726,7 @@ VARIABLE(filesystem_type)               //13  int
 //VARIABLE(query_block_entries)
 	.extent	ABS(EXT_C(grub_efi_image_handle))   //14  void *
 //VARIABLE(map_start_sector)
-	.extent	ABS(EXT_C(grub_efi_system_table))   //15  struct grub_efi_system_table
+	.extent	ABS(EXT_C(grub_efi_system_table))   //15  grub_efi_system_table *
 	.extent	ABS(EXT_C(buf_geom))            //16  geometry
 	.extent	ABS(EXT_C(tmp_geom))            //17  geometry
 VARIABLE(CONFIG_ENTRIES)                  //18  char *
@@ -752,16 +752,20 @@ VARIABLE(graphics_CURSOR)               //28  void *
 	.extent	(EXT_C(menu_border))            //29  border 数组
 VARIABLE(gzip_filemax)                  //30  long long
 	.extent	0
-	.extent	ABS(EXT_C(WENV_ENVI))           //31  char *
+	.extent	ABS(EXT_C(WENV_ENVI))           //31  char *  (实际是char **)!!!
 	//reserved for wee
 VARIABLE(bat_md_start)                    //32  grub_size_t
 	.extent	0
 VARIABLE(bat_md_count)                    //33  unsigned int
 	.extent	0
-	.extent	0                               //34  reserved
-	.extent	0                               //35  reserved
-	.extent	0                               //36  reserved
-	.extent	0                               //37  reserved
+VARIABLE(ext_data_0)                      //34  unsigned long long
+	.extent	0
+VARIABLE(ext_data_1)                      //35  unsigned long long
+	.extent	0
+VARIABLE(map_start_sector)                //36  unsigned long long*
+	.extent	0
+VARIABLE(map_num_sectors)                 //37  unsigned long long*
+	.extent	0
 	.extent	0                               //38  reserved
 	.extent	0                               //39  reserved
 	.extent	0                               //40  reserved

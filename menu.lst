@@ -131,6 +131,15 @@ title 使用外部命令 NTBOOT 启动 Windows 系统
 /efi/grub/ext/ntboot  (hdx,y)/win
 boot
 
+title 使用 http 网起 iso 或者 img 镜象
+map (http)/imgs/pe.iso (cd)
+chainloader (cd-1)
+boor
+
+title 使用 http 及外部命令 NTBOOT 网启 wim 镜象
+/efi/grub/ext/ntboot (http)/imgs/pe.wim
+boot
+
 title 命令行
 commandline
 

@@ -346,13 +346,20 @@ dec_vhd_open(void)
 		goto quit;
 
 	dec_vhd_close();
+	if (current_drive == 0x21 || current_drive == 0x7f) //为了网起   2024-12-12
+	{
+    from_log2_sector = 9;	//未考虑4k磁盘
+    to_log2_sector = 9;
+    to_block_size = 512;
+    goto bbb;
+	}
 	d = get_device_by_drive (current_drive,0);
 	if (!d)
 		return 0;
 	from_log2_sector = 9;	//未考虑4k磁盘
 	to_log2_sector = d->from_log2_sector;
 	to_block_size = 1 << to_log2_sector;
-		
+bbb:		
 	vhd_vhdfc_index++;
 	GetSectorSequence (vhd_file_name, &SectorSequence, 1);
 	if (!SectorSequence)

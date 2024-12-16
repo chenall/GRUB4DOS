@@ -849,7 +849,7 @@ extern unsigned char num_wide;
 extern unsigned int font_spacing;
 extern unsigned int line_spacing;
 extern void rectangle(int left, int top, int length, int width, int line);
-extern int hex (int v);
+//extern int hex (int v);
 extern unsigned int splashimage_loaded;
 extern unsigned int X_offset,Y_offset;
 extern int console_color[];
@@ -1402,6 +1402,8 @@ extern unsigned int hotkey_color;
 extern int font_func (char *arg, int flags);
 extern char embed_font_path[64];
 extern char *embed_font;
+extern unsigned long long ext_data_0;
+extern unsigned long long ext_data_1;
 
 #ifdef SUPPORT_GRAPHICS
 extern unsigned int current_x_resolution;
@@ -1458,9 +1460,12 @@ extern void defer(unsigned short millisecond);
 extern unsigned short beep_duration;
 extern unsigned long long initrd_start_sector;
 extern int map_func (char *arg, int flags);
+extern unsigned long long* map_start_sector;	
+extern unsigned long long* map_num_sectors;
 extern unsigned int ext_num;
 extern unsigned int ext_start_lba;
 extern unsigned int ext_total_sectors;
+//extern int query_block_entries;
 //#define DEBUG_SLEEP {debug_sleep(debug_boot,__LINE__,__FILE__);}
 //extern inline void debug_sleep(int debug_boot, int line, char *file);
 
@@ -1658,7 +1663,7 @@ extern unsigned int udf_BytePerSector;
  */
 
 //extern char *end_of_low_16bit_code;
-extern struct multiboot_info mbi;
+//extern struct multiboot_info mbi;
 extern unsigned int saved_drive;
 extern unsigned int saved_partition;
 extern char saved_dir[256];
@@ -1702,7 +1707,7 @@ extern int displaymem_func (char *arg, int flags);
  *  Error variables.
  */
 
-extern grub_error_t errnum;
+extern grub_error_t errnum; //设置错误号=0x1234，大于MAX_ERR_NUM，不打印err_list[errnum]，错误信息由相应程序处理。设置错误号，可以避免死机。
 extern char *err_list[];
 
 /* Simplify declaration of entry_addr. */
@@ -2246,6 +2251,9 @@ extern unsigned int pxe_restart_config;
 extern char *efi_pxe_buf; //2023-11-28
 extern unsigned int saved_pxe_ip;
 extern unsigned char saved_pxe_mac[6];
+extern grub_u32_t cur_pxe_type;
+extern grub_u32_t pxe_http_type;
+extern int map_pd;
 
 #ifdef FSYS_PXE
 
@@ -2880,7 +2888,7 @@ typedef enum grub_efi_reset_type grub_efi_reset_type_t;
 #define GRUB_EFI_NOT_FOUND		GRUB_EFI_ERROR_CODE (14)				//没有找到
 #define GRUB_EFI_ACCESS_DENIED		GRUB_EFI_ERROR_CODE (15)		//拒绝访问
 #define GRUB_EFI_NO_RESPONSE		GRUB_EFI_ERROR_CODE (16)			//没有反应
-#define GRUB_EFI_NO_MAPPING		GRUB_EFI_ERROR_CODE (17)				//没有映射
+#define GRUB_EFI_NO_MAPPING		GRUB_EFI_ERROR_CODE (17)				//没有映射  到设备的映射不存在
 #define GRUB_EFI_TIMEOUT		GRUB_EFI_ERROR_CODE (18)					//超时
 #define GRUB_EFI_NOT_STARTED		GRUB_EFI_ERROR_CODE (19)			//没有开始
 #define GRUB_EFI_ALREADY_STARTED	GRUB_EFI_ERROR_CODE (20)		//已经开始
@@ -2891,6 +2899,12 @@ typedef enum grub_efi_reset_type grub_efi_reset_type_t;
 #define GRUB_EFI_INCOMPATIBLE_VERSION	GRUB_EFI_ERROR_CODE (25)//不兼容的版本
 #define GRUB_EFI_SECURITY_VIOLATION	GRUB_EFI_ERROR_CODE (26)	//安全违规
 #define GRUB_EFI_CRC_ERROR		GRUB_EFI_ERROR_CODE (27)				//CRC错误
+#define GRUB_EFI_END_OF_MEDIA   GRUB_EFI_ERROR_CODE (28)      //已到达媒体的开始或结束
+#define GRUB_EFI_END_OF_FILE    GRUB_EFI_ERROR_CODE (31)      //已到达文件的末尾
+#define GRUB_EFI_INVALID_LANGUAGE   GRUB_EFI_ERROR_CODE (32)  //指定的语言无效
+#define GRUB_EFI_COMPROMISED_DATA   GRUB_EFI_ERROR_CODE (33)  //数据的安全状态未知或已损坏，必须更新或替换数据才能恢复有效的安全状态。
+#define GRUB_EFI_IP_ADDRESS_CONFLICT    GRUB_EFI_ERROR_CODE (34) //存在地址冲突地址分配
+#define GRUB_EFI_HTTP_ERROR   GRUB_EFI_ERROR_CODE (35)        //网络操作过程中发生HTTP错误
 
 #define GRUB_EFI_WARN_UNKNOWN_GLYPH	GRUB_EFI_WARNING_CODE (1)				//警告		未知字形
 #define GRUB_EFI_WARN_DELETE_FAILURE	GRUB_EFI_WARNING_CODE (2)			//警告		删除失败
@@ -3171,8 +3185,8 @@ typedef struct grub_efi_infiniband_device_path grub_efi_infiniband_device_path_t
 struct grub_efi_mac_address_device_path   //MAC地址设备路径 
 {
   grub_efi_device_path_t header;
-  grub_efi_mac_address_t mac_address;
-  unsigned char if_type;
+  grub_efi_mac_address_t mac_address;     //mac地址
+  unsigned char if_type;                  //网络接口类型（即802.3、FDDI） See RFC 3232
 } __attribute__ ((packed));
 typedef struct grub_efi_mac_address_device_path grub_efi_mac_address_device_path_t;
 //IPV4设备路径子类型
@@ -3180,15 +3194,15 @@ typedef struct grub_efi_mac_address_device_path grub_efi_mac_address_device_path
 
 struct grub_efi_ipv4_device_path  //ipv4设备路径
 {
-  grub_efi_device_path_t header;
-  grub_efi_ipv4_address_t local_ip_address;
-  grub_efi_ipv4_address_t remote_ip_address;
-  grub_efi_uint16_t local_port;
-  grub_efi_uint16_t remote_port;
-  grub_efi_uint16_t protocol;
-  grub_efi_uint8_t static_ip_address;
-  grub_efi_ipv4_address_t gateway_ip_address;
-  grub_efi_ipv4_address_t subnet_mask;
+  grub_efi_device_path_t header;              //标头
+  grub_efi_ipv4_address_t local_ip_address;   //本地ip地址
+  grub_efi_ipv4_address_t remote_ip_address;  //远程ip地址
+  grub_efi_uint16_t local_port;               //本地端口
+  grub_efi_uint16_t remote_port;              //远程端口
+  grub_efi_uint16_t protocol;                 //网络协议（即UDP、TCP）
+  grub_efi_uint8_t static_ip_address;         //静态ip地址  0x00-源IP地址是通过DHCP分配的；0x01-源IP地址被静态绑定
+  grub_efi_ipv4_address_t gateway_ip_address; //网关ip地址
+  grub_efi_ipv4_address_t subnet_mask;        //子网掩码
 } GRUB_PACKED;
 typedef struct grub_efi_ipv4_device_path grub_efi_ipv4_device_path_t;
 //IPV6设备路径子类型
@@ -3196,15 +3210,15 @@ typedef struct grub_efi_ipv4_device_path grub_efi_ipv4_device_path_t;
 
 struct grub_efi_ipv6_device_path  //ipv6设备路径
 {
-  grub_efi_device_path_t header;
-  grub_efi_ipv6_address_t local_ip_address;
-  grub_efi_ipv6_address_t remote_ip_address;
-  grub_efi_uint16_t local_port;
-  grub_efi_uint16_t remote_port;
-  grub_efi_uint16_t protocol;
-  grub_efi_uint8_t static_ip_address;
-  grub_efi_uint8_t prefix_length;
-  grub_efi_ipv6_address_t gateway_ip_address;
+  grub_efi_device_path_t header;              //标头
+  grub_efi_ipv6_address_t local_ip_address;   //本地ip地址
+  grub_efi_ipv6_address_t remote_ip_address;  //远程ip地址  
+  grub_efi_uint16_t local_port;               //本地端口
+  grub_efi_uint16_t remote_port;              //远程端口
+  grub_efi_uint16_t protocol;                 //网络协议（即UDP、TCP）
+  grub_efi_uint8_t static_ip_address;         //静态ip地址  0x00-本地IP地址已手动配置；0x01-本地IP地址是通过IPv6无状态自动配置分配的；0x02-本地IP地址是通过IPv6状态配置分配的
+  grub_efi_uint8_t prefix_length;             //前缀长度
+  grub_efi_ipv6_address_t gateway_ip_address; //网关ip地址
 } GRUB_PACKED;
 typedef struct grub_efi_ipv6_device_path grub_efi_ipv6_device_path_t;
 //UART设备路径子类型
@@ -3749,13 +3763,14 @@ struct grub_efi_boot_services   //引导服务
 			    grub_efi_handle_t driver_image_handle,	//从控制器手柄上断开的驱动程序。如果DriverImageHandle为空，则当前管理ControllerHandle的所有驱动程序都与ControllerHandle断开连接。 
 			    grub_efi_handle_t child_handle);	//要摧毁子级的句柄。如果child_handle为空，则在驱动程序与controllerhandle断开连接之前，controllerhandle的所有子级都将被销毁。 
 
+  //打开协议
   grub_efi_status_t EFIAPI
-  (*open_protocol) (grub_efi_handle_t handle,
-		    grub_efi_guid_t *protocol,
-		    void **protocol_interface,
-		    grub_efi_handle_t agent_handle,
-		    grub_efi_handle_t controller_handle,
-		    grub_efi_uint32_t attributes);  //打开协议
+  (*open_protocol) (grub_efi_handle_t handle, //句柄
+		    grub_efi_guid_t *protocol,            //协议guid
+		    void **protocol_interface,            //协议接口
+		    grub_efi_handle_t agent_handle,       //代理句柄
+		    grub_efi_handle_t controller_handle,  //控制句柄
+		    grub_efi_uint32_t attributes);        //属性
 
   grub_efi_status_t EFIAPI
   (*close_protocol) (grub_efi_handle_t handle,
@@ -4092,9 +4107,9 @@ typedef struct grub_efi_pxe_dhcpv4_packet	//引导播放器		备注: 在 ipxe->b
 
 struct grub_efi_pxe_dhcpv6_packet
 {
-  grub_efi_uint32_t message_type:8;
-  grub_efi_uint32_t transaction_id:24;
-  grub_efi_uint8_t dhcp_options[1024];
+  grub_efi_uint32_t message_type:8;       //消息类型
+  grub_efi_uint32_t transaction_id:24;    //交易id
+  grub_efi_uint8_t dhcp_options[1024];    //dhcp选项
 } GRUB_PACKED;
 typedef struct grub_efi_pxe_dhcpv6_packet grub_efi_pxe_dhcpv6_packet_t;
 
@@ -6424,7 +6439,7 @@ struct grub_net_card	//网卡
     void *data;		//数据指针
     int data_num;	//数据号
   };
-};
+} GRUB_PACKED;
 
 #define GRUB_NET_BOOTP_MAC_ADDR_LEN	16
 typedef grub_uint8_t grub_net_bootp_mac_addr_t[GRUB_NET_BOOTP_MAC_ADDR_LEN];
@@ -6810,7 +6825,8 @@ struct grub_efi_dhcp6_protocol {
 	    grub_efi_uint32_t *option_count,
 	    grub_efi_dhcp6_packet_option_t *packet_option_list[]);
 };
-//======================================================================================================================
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//http.c
 #define EFIHTTP_WAIT_TIME 10000 // 10000ms = 10s
 #define EFIHTTP_RX_BUF_LEN 10240
 
@@ -6832,30 +6848,30 @@ typedef enum {
 // EFI_HTTPv4_ACCESS_POINT		HTTPv4访问点
 //******************************************
 typedef struct {
-  grub_efi_boolean_t use_default_address;	//使用默认地址
-  grub_efi_ipv4_address_t local_address;	//本地地址
-  grub_efi_ipv4_address_t local_subnet;		//本地子网
-  grub_efi_uint16_t local_port;						//本地端口
+  grub_efi_boolean_t use_default_address; //使用默认地址  设置为TRUE可指示EFI HTTP实例在该实例建立的每个TCP连接中使用默认地址信息。此外，当设置为TRUE时，LocalAddress和LocalSubnet将被忽略
+  grub_efi_ipv4_address_t local_address;  //本地地址  如果UseDefaultAddress设置为FALSE，则定义此实例打开的每个TCP连接中要使用的本地IP地址。
+  grub_efi_ipv4_address_t local_subnet;   //本地子网  如果UseDefaultAddress设置为FALSE，则定义此实例打开的每个TCP连接中要使用的本地子网。
+  grub_efi_uint16_t local_port;           //本地端口  这定义了此实例打开的每个TCP连接中要使用的本地端口。
 } grub_efi_httpv4_access_point_t;
 
 //******************************************
 // EFI_HTTPv6_ACCESS_POINT		HTTPv6访问点
 //******************************************
 typedef struct {
-  grub_efi_ipv6_address_t local_address;	//本地地址
-  grub_efi_uint16_t local_port;						//本地端口
+  grub_efi_ipv6_address_t local_address;  //本地地址  要在此实例打开的每个TCP连接中使用的本地IP地址。
+  grub_efi_uint16_t local_port;           //本地端口  要在此实例打开的每个TCP连接中使用的本地端口。
 } grub_efi_httpv6_access_point_t;
 
 //******************************************
 // EFI_HTTP_CONFIG_DATA		HTTP配置数据
 //******************************************
 typedef struct {
-  grub_efi_http_version_t http_version;		//HTTP版本
-  grub_efi_uint32_t timeout_millisec;			//超时毫秒
-  grub_efi_boolean_t local_address_is_ipv6;	//本地地址是ipv6
+  grub_efi_http_version_t http_version;		//HTTP版本   此实例将支持的HTTP版本
+  grub_efi_uint32_t timeout_millisec;			//超时(毫秒) 阻止请求时超时(以毫秒为单位)
+  grub_efi_boolean_t local_address_is_ipv6;	//本地地址是ipv6  定义此实例使用的EFI DNS和TCP协议的行为。如果为FALSE，此实例将使用EFI_DNSO_PROTOCOLEFI_TCP4_协议。如果为TRUE，则此实例将使用EFI_DNS6-PROTOCOL和EFI_TCP6-PROTOCOL。
   union {
-    grub_efi_httpv4_access_point_t *ipv4_node;	//ipv4节点
-    grub_efi_httpv6_access_point_t *ipv6_node;	//ipv6节点
+    grub_efi_httpv4_access_point_t *ipv4_node;	//ipv4节点  当LocalAddressIsIPv6为FALSE时，这将指向本地底层TCP协议使用的地址、子网和端口。
+    grub_efi_httpv6_access_point_t *ipv6_node;	//ipv6节点  当LocalAddressIsIPv6为TRUE时，它指向底层TCP协议使用的本地IPv6地址和端口。
   } access_point;													//切入点
 } grub_efi_http_config_data_t;
 
@@ -6863,27 +6879,27 @@ typedef struct {
 // EFI_HTTP_METHOD		HTTP方法
 //******************************************
 typedef enum {
-  GRUB_EFI_HTTPMETHODGET,				//HTTP方法  获得
-  GRUB_EFI_HTTPMETHODPOST,			//HTTP方法  开机自检
-  GRUB_EFI_HTTPMETHODPATCH,			//HTTP方法  补丁
-  GRUB_EFI_HTTPMETHODOPTIONS,		//HTTP方法  选项
-  GRUB_EFI_HTTPMETHODCONNECT,		//HTTP方法  连接
-  GRUB_EFI_HTTPMETHODHEAD,			//HTTP方法  头
-  GRUB_EFI_HTTPMETHODPUT,				//HTTP方法  放置
-  GRUB_EFI_HTTPMETHODDELETE,		//HTTP方法  删除
-  GRUB_EFI_HTTPMETHODTRACE,			//HTTP方法  跟踪
+  GRUB_EFI_HTTPMETHODGET,				//HTTP方法  获得  请求指定的页面信息，并返回实体主体。
+  GRUB_EFI_HTTPMETHODPOST,			//HTTP方法  发布  向指定资源提交数据进行处理请求（例如提交表单或者上传文件）。数据被包含在请求体中。POST 请求可能会导致新的资源的建立和/或已有资源的修改。
+  GRUB_EFI_HTTPMETHODPATCH,			//HTTP方法  修补  是对 PUT 方法的补充，用来对已知资源进行局部更新 。
+  GRUB_EFI_HTTPMETHODOPTIONS,		//HTTP方法  选择  允许客户端查看服务器的性能。
+  GRUB_EFI_HTTPMETHODCONNECT,		//HTTP方法  连接  HTTP/1.1 协议中预留给能够将连接改为管道方式的代理服务器。
+  GRUB_EFI_HTTPMETHODHEAD,			//HTTP方法  头部  类似于 GET 请求，只不过返回的响应中没有具体的内容，用于获取报头
+  GRUB_EFI_HTTPMETHODPUT,				//HTTP方法  安置  从客户端向服务器传送的数据取代指定的文档的内容。
+  GRUB_EFI_HTTPMETHODDELETE,		//HTTP方法  删除  请求服务器删除指定的页面。
+  GRUB_EFI_HTTPMETHODTRACE,			//HTTP方法  跟踪  回显服务器收到的请求，主要用于测试或诊断。
 } grub_efi_http_method_t;
 
 //******************************************
 // EFI_HTTP_REQUEST_DATA		HTTP请求数据
 //******************************************
 typedef struct {
-  grub_efi_http_method_t method;	//方法
-  grub_efi_char16_t *url;					//网址
+  grub_efi_http_method_t method;	//方法  此HTTP请求的HTTP方法（例如GET、POST）。
+  grub_efi_char16_t *url;					//网址  远程主机的URI。根据此字段中的信息，HTTP实例将能够确定是使用HTTP还是HTTPS，还将能够确定要使用的端口号。如果没有指定端口号，则假定为端口80（HTTP）。有关URI语法的更多详细信息，请参阅RFC 3986。
 } grub_efi_http_request_data_t;
 
 typedef enum {
-  GRUB_EFI_HTTP_STATUS_UNSUPPORTED_STATUS = 0,						//不支持
+  GRUB_EFI_HTTP_STATUS_UNSUPPORTED_STATUS = 0,						//不受支持的状态
   GRUB_EFI_HTTP_STATUS_100_CONTINUE,											//继续
   GRUB_EFI_HTTP_STATUS_101_SWITCHING_PROTOCOLS,						//交换协议
   GRUB_EFI_HTTP_STATUS_200_OK,														//ok
@@ -6930,65 +6946,149 @@ typedef enum {
 // EFI_HTTP_RESPONSE_DATA		HTTP响应数据
 //******************************************
 typedef struct {
-  grub_efi_http_status_code_t status_code;	//状态码
+  grub_efi_http_status_code_t status_code;	//状态码  远程主机返回的响应状态代码。
 } grub_efi_http_response_data_t;
 
 //******************************************
 // EFI_HTTP_HEADER		HTTP头
 //******************************************
 typedef struct {
-  grub_efi_char8_t *field_name;		//领域名称
-  grub_efi_char8_t *field_value;	//领域值
+  grub_efi_char8_t *field_name;		//字段名称  以Null结尾的字符串，用于描述字段名称。有关字段名称的详细信息，请参阅RFC 2616第14节。
+  grub_efi_char8_t *field_value;	//字段值  以Null结尾的字符串，用于描述相应的字段值。有关字段值的详细信息，请参阅RFC 2616第14节。
 } grub_efi_http_header_t;
 
 //******************************************
 // EFI_HTTP_MESSAGE		HTTP消息
 //******************************************
+//HTTP驱动程序将根据中包含的信息准备一个请求字符串，并将其排队到要发送到远程主机的底层TCP实例。
+//通常，结构中的所有字段都包含内容(当HTTP方法不是POST或PUT时，Body和BodyLength除外)，但有一种特殊情况当使用PUT或POST发送大量数据时。
+//根据数据的大小，它可能不是能够存储在连续的内存块中，因此需要以块的形式提供数据。在这个情况下，如果Body不为NULL，BodyLength为非零，
+//并且所有其他字段都为NULL或0，则HTTP驱动程序将对要发送到成功发送令牌的最后一个远程主机的数据进行排队。如果之前没有令牌发送成功，
+//此函数将返回。
+//HTTP驱动程序应关闭现有的（如果有的话）基础TCP实例并创建新的TCP实例如果请求URL中的主机名与以前对request()的调用不同。
+//这与RFC 2616建议HTTP客户端应尝试维护开放的TCP连接客户端和主机之间。
 typedef struct {
   union {
-    grub_efi_http_request_data_t *request;		//请求
-    grub_efi_http_response_data_t *response;	//响应
+    grub_efi_http_request_data_t *request;		//请求  当令牌用于发送HTTP请求时，request是指向包含URL和HTTP方法等数据的存储的指针。
+    grub_efi_http_response_data_t *response;	//响应  当用于等待响应时，response指向包含HTTP响应状态代码的存储。
   } data;																			//数据
-  grub_efi_uint32_t header_count;							//标题计数
-  grub_efi_http_header_t *headers;						//标头
-  grub_efi_uint32_t body_length;							//体长
-  void *body;																	//体
+  grub_efi_uint32_t header_count;							//标题计数  标头列表中的HTTP标头结构数。根据请求，此计数由调用者提供。响应时，此计数由HTTP驱动程序提供。
+  grub_efi_http_header_t *headers;						//标头  包含HTTP标头列表的数组。根据请求，此数组由调用方填充。响应时，此数组由HTTP驱动程序分配和填充。调用方负责在请求和响应时释放此内存。
+  grub_efi_uint32_t body_length;							//体长  HTTP正文的长度（以字节为单位）。这可以是零，具体取决于HttpMethod类型。
+  void *body;																	//体   与HTTP请求或响应关联的正文。这可以是NULL，具体取决于HttpMethod类型。
 } grub_efi_http_message_t;
 
 //******************************************
 // EFI_HTTP_TOKEN		HTTP令牌
 //******************************************
 typedef struct {
-  grub_efi_event_t event;						//事件
-  grub_efi_status_t status;					//状态
-  grub_efi_http_message_t *message;	//信息
+  grub_efi_event_t event;						//事件  EFI HTTP协议驱动程序更新Status字段后，将发出此事件的信号。事件的类型必须是EFI_NOTIFY_SIGNAL。事件的任务优先级（TPL）必须低于或等于TPL_CALLBACK。
+  grub_efi_status_t status;					//状态  如果HTTP请求为成功发送或发生意外错误：
+//EFI_SUCCESS：HTTP请求已成功发送到远程主机。
+//EFI_HTTP_ERROR:响应消息成功收到，但包含HTTP错误。响应状态代码为在Token中返回。
+//EFI_ABORTED：调用方取消了HTTP请求，并且从传输队列中删除。
+//EFI_TIMEOUT:HTTP请求在到达之前超时远程主机。
+//EFI_DEVICE_ERROR：意外的系统或网络错误发生。
+  grub_efi_http_message_t *message;	//信息  指向包含HTTP消息数据的存储的指针。
 } grub_efi_http_token_t;
 
 struct grub_efi_http {
 //获得模式数据
+//获取当前操作状态。返回当前HTTP子实例的操作参数。
   grub_efi_status_t
-  (*get_mode_data) (struct grub_efi_http *this,
-                    grub_efi_http_config_data_t *http_config_data);
+  (*get_mode_data) (struct grub_efi_http *this, //指向EFI_HTTP_PROTOCOL实例的指针。
+                    grub_efi_http_config_data_t *http_config_data); //指向此HTTP实例的操作参数的缓冲区的指针。调用方负责为HttpConfigData和HttpConfigData->AccessPoint分配内存。IPv6节点/IPv4节点。事实上，建议分配足够的内存来记录IPv6Node，因为它足够大，可以满足所有可能性。
 //配置
+//初始化、更改或重置EFI HTTP协议实例中的操作设置
+//Configure()函数执行以下操作：
+//•当HttpConfigData不为NULL时，通过配置超时、本地地址、端口等初始化此EFI HTTP实例。
+//•当HttpConfigData为NULL时，通过关闭与远程主机的所有活动连接、取消所有异步令牌以及在不通知适当主机的情况下刷新请求和响应缓冲区来重置此EFI HTTP实例。。
+//在Configure()函数执行并成功返回之前，此实例无法执行其他EFI HTTP函数。
   grub_efi_status_t
-  (*configure) (struct grub_efi_http *this,
-                grub_efi_http_config_data_t *http_config_data);	//配置数据
+  (*configure) (struct grub_efi_http *this,     //指向EFI_HTTP_PROTOCOL实例的指针。
+                grub_efi_http_config_data_t *http_config_data);	//配置数据  指向用于配置实例的配置数据的指针。
 //请求
+//将请求令牌排入传输队列。此功能是非阻塞操作。
+//Request()函数将HTTP请求排队到此HTTP实例，类似于EFI TCP驱动程序中的Transmit（）函数。当HTTP请求成功发送时，或者出现错误时，将更新令牌中的Status，并发出Event信号。
   grub_efi_status_t
-  (*request) (struct grub_efi_http *this,
-              grub_efi_http_token_t *token);	//令牌
+  (*request) (struct grub_efi_http *this, //指向EFI_HTTP_PROTOCOL实例的指针。
+              grub_efi_http_token_t *token);	//令牌  指向包含HTTP请求令牌的存储的指针。
 //取消
+//中止挂起的请求或响应操作。
+//Cancel()函数中止挂起的HTTP请求或响应事务。如果取消时Token不为NULL并且处于发送或接收队列中，则其Token->Status将设置为EFI_ABORTED，然后Token->Event将发出信号。如果令牌不在其中一个队列中，这通常意味着异步操作已经完成，则返回EFI_not_FOUND。如果Token为NULL，则Request（）或Response（）发出的所有异步令牌都将中止。
   grub_efi_status_t
-  (*cancel) (struct grub_efi_http *this,
-             grub_efi_http_token_t *token);	//令牌
+  (*cancel) (struct grub_efi_http *this,  //指向EFI_HTTP_PROTOCOL实例的指针。
+             grub_efi_http_token_t *token);	//令牌  指向包含HTTP请求或响应令牌的存储。
 //响应
+//将响应令牌排入接收队列。此功能是非阻塞操作。
+//Response() 函数将对此HTTP实例的HTTP响应排队，类似于EFI TCP驱动程序中的Receive（）函数。当成功接收到HTTP响应时，或者如果出现错误，将更新令牌中的Status，并发出Event信号。
+//HTTP驱动程序将接收令牌排入底层TCP实例的队列。当在中接收到数据时底层TCP实例，数据将被解析，令牌将被填充响应数据。
+//如果从远程主机接收的数据包含不完整或无效的HTTP标头，即HTTP驱动程序将继续（异步）等待从远程主机发送更多数据，然后再发出信号令牌中的事件。
+//调用方负责为Body分配缓冲区并在BodyLength中指定大小。如果远程主机提供一个包含内容正文的响应，最多BodyLength字节将从接收缓冲区复制到正文中，
+//并且BodyLength将根据接收到的字节数进行更新并复制到Body。这允许客户端将大文件分块下载，而不是下载到一个文件中连续的内存块。
+//类似于HTTP请求，如果Body不为NULL并且BodyLength为非零并且所有其他字段都为NULL或0，则HTTP驱动程序将接收令牌排队到底层TCP实例。
+//如果数据到达接收缓冲区，则最多BodyLength字节的数据将被复制到Body。HTTP然后，驱动程序将用接收并复制到Body的字节数更新BodyLength。
+//如果HTTP驱动程序与响应URL中指定的主机没有打开的底层TCP连接，response（）将返回EFI_ACCESS_DENIED。这与RFC 2616的建议一致，即HTTP客户端应尝试维护客户端和主机之间的开放TCP连接。
   grub_efi_status_t
-  (*response) (struct grub_efi_http *this,
-               grub_efi_http_token_t *token);	//令牌
+  (*response) (struct grub_efi_http *this,  //指向EFI_HTTP_PROTOCOL实例的指针。
+               grub_efi_http_token_t *token);	//令牌  指向包含HTTP响应令牌的存储的指针。有关EFI_HTTP_TOKEN的定义，请参阅Request（）函数。
 //获得
+//轮询以接收传入的HTTP响应并发送传出的HTTP请求。
+//轮询传入的数据包并处理传出的数据包。
+//网络驱动程序和应用程序可以使用Poll()函数来增加数据包在通信设备之间移动的速率，以及发送和接收队列。
+//在某些系统中，中的周期性计时器事件受管网络驱动程序可能不会轮询底层通信设备足够快以发送和/或接收所有数据分组，而不会丢失传入分组或丢弃传出分组。
+//驱动程序和应用程序正在经历数据包丢失，应尝试更频繁地调用Poll（）函数。
   grub_efi_status_t
-  (*poll) (struct grub_efi_http *this);
+  (*poll) (struct grub_efi_http *this); //指向EFI_HTTP_PROTOCOL实例的指针。
 };
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/*
+//EFI_HTTP_UTILITIES_PROTOCOL       EFI HTTP实用程序协议接口
+//协议GUID
+#define EFI_HTTP_UTILITIES_PROTOCOL_GUID \
+{ 0x3E35C163, 0x4074, 0x45DD,\
+ { 0x43, 0x1E, 0x23, 0x98, 0x9D, 0xD8, 0x6B, 0x32 }}
+ 
+//协议接口结构
+//EFI HTTP实用程序协议设计用于EFI驱动程序和应用程序解析字节流中的HTTP头。该驱动程序既不依赖于网络连接，也不依赖于底层网络基础设施的存在。
+typedef struct _EFI_HTTP_UTILITIES_PROTOCOL {
+ EFI_HTTP_UTILS_BUILD Build;    //创建  基于种子标头、要删除的字段和要附加的字段的组合创建HTTP标头。
+ EFI_HTTP_UTILS_PARSE Parse;    //解析  解析HTTP头并生成一个键/值对数组。
+} EFI_HTTP_UTILITIES_PROTOCOL;
+
+//EFI_HTTP_UTILITIES_PROTOCOL.Build()    //创建
+//提供在原始HTTP消息中添加、删除或替换HTTP标头的功能
+//Build()函数用于通过提供添加、删除或替换HTTP标头的功能来管理HTTP消息的标头部分。
+//EFI协议
+typedef 
+EFI_STATUS 
+(EFIAPI *EFI_HTTP_UTILS_BUILD) (
+ IN EFI_HTTP_UTILITIES_PROTOCOL *This,  //指向EFI_HTTP_UTILITIES_PROTOCOL实例的指针。
+ IN UINTN SeedMessageSize               //种子消息尺寸  初始HTTP标头的大小。这可以是零。
+ IN VOID *SeedMessage, OPTIONAL         //种子消息  要用作构建新HTTP标头的基础的初始HTTP标头。如果为NULL，则忽略SeedMessageSize。
+ IN UINTN DeleteCount                   //删除计数  DeleteList中终止为null的HTTP标头字段名的数目。
+ IN CHAR8 *DeleteList[], OPTIONAL       //删除列表  要从SeedMessage中删除的以null结尾的HTTP标头字段名称的列表。此列表中只有字段名，因为字段值与此操作无关。
+ IN UINTN AppendCount                   //附加计数  AppendList中的标头字段数。
+ IN EFI_HTTP_HEADER *AppendList[], OPTIONAL //附加列表  用于填充NewMessage的HTTP标头的列表。如果SeedMessage不为NULL，则AppendList将被附加到NewMessage中的SeedMessage的现有列表中
+ OUT UINTN *NewMessageSize,             //新消息尺寸  指向NewMessage中标头字段数的指针。
+ OUT VOID **NewMessage,                 //新建消息  指向基于的新HTTP标头列表的指针
+);
+
+//EFI_HTTP_UTILITIES_PROTOCOL.Parse()   //解析
+//将HTTP标头解析为键/值对数组。
+//Parse()函数用于将存储在HttpHeader中的数据转换为与其对应值配对的字段列表。
+//EFI Protocol
+typedef 
+EFI_STATUS 
+(EFIAPI *EFI_HTTP_UTILS_PARSE) (
+ IN EFI_HTTP_PROTOCOL *This,          //指向EFI_HTTP_UTILITIES_PROTOCOL实例的指针。 
+ IN CHAR8 *HttpMessage,               //Http消息  包含未格式化的原始HTTP标头字符串
+ IN UINTN HttpMessageSize,            //Http消息尺寸  HTTP标头的尺寸
+ OUT EFI_HTTP_HEADER **HeaderFields,  //标题字段  键/值头对的数组
+ OUT UINTN *FieldCount                //字段计数  HeaderFields中的标头数。
+);
+*/
+
 typedef struct grub_efi_http grub_efi_http_t;	//协议接口结构
 
 typedef struct grub_efi_net_interface grub_efi_net_interface_t;
@@ -6999,7 +7099,7 @@ typedef struct grub_efi_net_ip_manual_address grub_efi_net_ip_manual_address_t;
 struct grub_efi_net_interface		//网络接口
 {
   char *name;														//名称
-  int prefer_ip6;												//是ip6
+  int prefer_ip6;												//首选ip6
   struct grub_efi_net_device *dev;			//网络设备
   struct grub_efi_net_io *io;						//网络io
   grub_efi_net_ip_config_t *ip_config;	//ip配置
@@ -7013,6 +7113,12 @@ struct grub_efi_net_interface		//网络接口
 #define efi_net_interface_set_address(inf, addr, with_subnet) inf->ip_config->set_address (inf->dev, addr, with_subnet)
 #define efi_net_interface_set_gateway(inf, addr) inf->ip_config->set_gateway (inf->dev, addr)
 #define efi_net_interface_set_dns(inf, addr) inf->ip_config->set_dns (inf->dev, addr)
+
+#define efi_net_interface_configure(inf) inf->io->configure (inf->dev, inf->prefer_ip6)
+#define efi_net_interface_open(inf, file, name) inf->io->open (inf->dev, inf->prefer_ip6, file, name, inf->io_type)
+#define efi_net_interface_read(inf, file, buf, sz) inf->io->read (inf->dev, inf->prefer_ip6, file, buf, sz)
+#define efi_net_interface_close(inf, file) inf->io->close (inf->dev, inf->prefer_ip6, file)
+#define efi_net_interface(m,...) efi_net_interface_ ## m (net_interface, ## __VA_ARGS__)
 
 struct grub_efi_net_ip_config
 {
@@ -7246,6 +7352,181 @@ enum
   GRUB_ACPI_EXTOPCODE_INDEX_FIELD_OP = 0x86,
   GRUB_ACPI_EXTOPCODE_BANK_FIELD_OP = 0x87,
 };
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//grub/charse.h
+#define GRUB_MAX_UTF8_PER_UTF16 4
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//grub/compiler.h
+
+/* GCC version checking borrowed from glibc. */
+#if defined(__GNUC__) && defined(__GNUC_MINOR__)
+#  define GNUC_PREREQ(maj,min) \
+	((__GNUC__ << 16) + __GNUC_MINOR__ >= ((maj) << 16) + (min))
+#else
+#  define GNUC_PREREQ(maj,min) 0
+#endif
+
+/* Does this compiler support compile-time error attributes? */
+#if GNUC_PREREQ(4,3)
+#  define ATTRIBUTE_ERROR(msg) \
+	__attribute__ ((__error__ (msg)))
+#else
+#  define ATTRIBUTE_ERROR(msg) __attribute__ ((noreturn))
+#endif
+
+#if GNUC_PREREQ(4,4)
+#  define GNU_PRINTF gnu_printf
+#else
+#  define GNU_PRINTF printf
+#endif
+
+#if GNUC_PREREQ(3,4)
+#  define WARN_UNUSED_RESULT __attribute__ ((warn_unused_result))
+#else
+#  define WARN_UNUSED_RESULT
+#endif
+
+#if defined(__clang__) && defined(__clang_major__) && defined(__clang_minor__)
+#  define CLANG_PREREQ(maj,min) \
+          ((__clang_major__ > (maj)) || \
+	   (__clang_major__ == (maj) && __clang_minor__ >= (min)))
+#else
+#  define CLANG_PREREQ(maj,min) 0
+#endif
+
+#define UNUSED __attribute__((__unused__))
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//grub/safemath.h
+
+/* These appear in gcc 5.1 and clang 3.8. */
+#if GNUC_PREREQ(5, 1) || CLANG_PREREQ(3, 8)
+
+#define grub_add(a, b, res)	__builtin_add_overflow(a, b, res)
+#define grub_sub(a, b, res)	__builtin_sub_overflow(a, b, res)
+#define grub_mul(a, b, res)	__builtin_mul_overflow(a, b, res)
+
+#else
+/*
+ * Copyright 2020 Rasmus Villemoes
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to
+ * deal in the Software without restriction, including without limitation the
+ * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ */
+/*
+ * The code used in this header was taken from linux kernel commit
+ * f0907827a8a9152aedac2833ed1b674a7b2a44f2
+ * Rasmus Villemoes <linux@rasmusvillemoes.dk>, the original author of the
+ * patch, was contacted directly, confirmed his authorship of the code, and
+ * gave his permission on treating that dual license as MIT and including into
+ * GRUB2 sources
+ */
+
+#include <grub/types.h>
+#define is_signed_type(type)	(((type)(-1)) < (type)1)
+#define __type_half_max(type)	((type)1 << (8*sizeof(type) - 1 - is_signed_type(type)))
+#define type_max(T)		((T)((__type_half_max(T) - 1) + __type_half_max(T)))
+#define type_min(T)		((T)((T)-type_max(T)-(T)1))
+
+#define __unsigned_add_overflow(a, b, d) ({	\
+	typeof(+(a)) __a = (a);			\
+	typeof(+(b)) __b = (b);			\
+	typeof(d) __d = (d);			\
+	(void) (&__a == &__b);			\
+	(void) (&__a == __d);			\
+	*__d = __a + __b;			\
+	*__d < __a;				\
+})
+#define __unsigned_sub_overflow(a, b, d) ({     \
+	typeof(+(a)) __a = (a);			\
+	typeof(+(b)) __b = (b);			\
+	typeof(d) __d = (d);			\
+	(void) (&__a == &__b);			\
+	(void) (&__a == __d);			\
+	*__d = __a - __b;			\
+	__a < __b;				\
+})
+#define __unsigned_mul_overflow(a, b, d) ({		\
+	typeof(+(a)) __a = (a);				\
+	typeof(+(b)) __b = (b);				\
+	typeof(d) __d = (d);				\
+	(void) (&__a == &__b);				\
+	(void) (&__a == __d);				\
+	*__d = __a * __b;				\
+	__builtin_constant_p(__b) ?			\
+	  __b > 0 && __a > type_max(typeof(__a)) / __b :\
+	  __a > 0 && __b > type_max(typeof(__b)) / __a; \
+})
+
+#define __signed_add_overflow(a, b, d) ({		\
+	typeof(+(a)) __a = (a);				\
+	typeof(+(b)) __b = (b);				\
+	typeof(d) __d = (d);				\
+	(void) (&__a == &__b);				\
+	(void) (&__a == __d);				\
+	*__d = (grub_uint64_t)__a + (grub_uint64_t)__b;	\
+	(((~(__a ^ __b)) & (*__d ^ __a))		\
+		& type_min(typeof(__a))) != 0;		\
+})
+
+#define __signed_sub_overflow(a, b, d) ({		\
+	typeof(+(a)) __a = (a);				\
+	typeof(+(b)) __b = (b);				\
+	typeof(d) __d = (d);				\
+	(void) (&__a == &__b);				\
+	(void) (&__a == __d);				\
+	*__d = (grub_uint64_t)__a - (grub_uint64_t)__b;	\
+	((((__a ^ __b)) & (*__d ^ __a))			\
+		& type_min(typeof(__a))) != 0;		\
+})
+
+#define __signed_mul_overflow(a, b, d) ({			\
+	typeof(+(a)) __a = (a);					\
+	typeof(+(b)) __b = (b);					\
+	typeof(d) __d = (d);					\
+	typeof(+(a)) __tmax = type_max(typeof(+(a)));		\
+	typeof(+(a)) __tmin = type_min(typeof(+(a)));		\
+	(void) (&__a == &__b);					\
+	(void) (&__a == __d);					\
+	*__d = (grub_uint64_t)__a * (grub_uint64_t)__b;		\
+	(__b > 0   && (__a > __tmax/__b || __a < __tmin/__b)) ||\
+	(__b < (typeof(__b))-1  &&				\
+	 (__a > __tmin/__b || __a < __tmax/__b)) ||		\
+	(__b == (typeof(__b))-1 && __a == __tmin);		\
+})
+
+#define grub_add(a, b, d)					\
+	__builtin_choose_expr(is_signed_type(typeof(+(a))),	\
+			__signed_add_overflow(a, b, d),		\
+			__unsigned_add_overflow(a, b, d))
+
+#define grub_sub(a, b, d)					\
+	__builtin_choose_expr(is_signed_type(typeof(+(a))),	\
+			__signed_sub_overflow(a, b, d),		\
+			__unsigned_sub_overflow(a, b, d))
+
+#define grub_mul(a, b, d)					\
+	__builtin_choose_expr(is_signed_type(typeof(+(a))),	\
+			__signed_mul_overflow(a, b, d),		\
+			__unsigned_mul_overflow(a, b, d))
+
+#endif
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #endif /* ! ASM_FILE */
 #endif /* ! GRUB_SHARED_HEADER */

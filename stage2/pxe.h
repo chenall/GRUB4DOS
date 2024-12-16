@@ -190,11 +190,11 @@ typedef struct {
 
 
 
-typedef enum grub_network_level_protocol_id 
+typedef enum grub_network_level_protocol_id   //网络级协议id
 {
-  GRUB_NET_NETWORK_LEVEL_PROTOCOL_DHCP_RECV,
-  GRUB_NET_NETWORK_LEVEL_PROTOCOL_IPV4,
-  GRUB_NET_NETWORK_LEVEL_PROTOCOL_IPV6
+  GRUB_NET_NETWORK_LEVEL_PROTOCOL_DHCP_RECV,  //DHCP_RECV
+  GRUB_NET_NETWORK_LEVEL_PROTOCOL_IPV4,       //IPV4
+  GRUB_NET_NETWORK_LEVEL_PROTOCOL_IPV6        //IPV6
 } grub_network_level_protocol_id_t;
 
 typedef struct grub_net_network_level_netaddress
@@ -328,16 +328,18 @@ typedef struct {
 } PACKED PXENV_UNLOAD_STACK_t;		 //卸载堆栈 
 
 typedef struct {
-	int (*open)(const char *name);												//打开			tftp_open				ipxe_open
-	grub_u32_t (*getsize)(void);													//获得尺寸	tftp_get_size		ipxe_get_size
-	grub_u32_t (*readblk)(grub_u32_t buf,grub_u32_t num);	//读				tftp_read_blk		ipxe_read_blk
-	void (*close)(void);																	//关闭 			tftp_close			ipxe_close
-	void (*unload)(void);																	//卸载			tftp_unload			ipxe_unload
+	int (*open)(void);												            //打开			tftp_open				ipxe_open
+//	grub_u32_t (*getsize)(void);													//获得尺寸	tftp_get_size		ipxe_get_size
+//	grub_u32_t (*readblk)(grub_u32_t buf,grub_u32_t num);	//读				tftp_read_blk		ipxe_read_blk
+  grub_size_t (*read)(char *buf,grub_u64_t num);	  //读
+//	void (*close)(void);																	//关闭 			tftp_close			ipxe_close
+//	void (*unload)(void);																	//卸载			tftp_unload			ipxe_unload
 } s_PXE_FILE_FUNC;																			//pxe文件功能
 extern s_PXE_FILE_FUNC *pxe_file_func[2];
 extern unsigned int pxe_blksize;
 #define PXE_FILE_TYPE_TFTP 0
-#define PXE_FILE_TYPE_IPXE 1
+#define PXE_FILE_TYPE_HTTP 1
+//#define PXE_FILE_TYPE_IPXE 1
 /////////////////////////////////////////////////////////////////////////
 extern struct grub_net_card *grub_net_cards;
 #define FOR_NET_CARDS(var) for (var = grub_net_cards; var; var = var->next)

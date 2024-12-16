@@ -376,6 +376,7 @@ void grub_halt (void);
 void
 grub_halt (void)  //关机
 {
+  grub_machine_fini ();
   efi_call_4 (grub_efi_system_table->runtime_services->reset_system,	//系统表->运行时服务->重置系统
               GRUB_EFI_RESET_SHUTDOWN, GRUB_EFI_SUCCESS, 0, NULL);				//关机,成功 ,0,NULL
   for (;;) ;
@@ -1400,6 +1401,143 @@ grub_realloc (void *ptr, grub_size_t size)
 }
 #endif
 
+/////////////////////////////////////////////////////////////////////////////////////////
+#define GRUB_UCS2_LIMIT 0x10000
+#define GRUB_UTF16_UPPER_SURROGATE(code) \
+  (0xD800 | ((((code) - GRUB_UCS2_LIMIT) >> 10) & 0x3ff))
+#define GRUB_UTF16_LOWER_SURROGATE(code) \
+  (0xDC00 | (((code) - GRUB_UCS2_LIMIT) & 0x3ff))
+
+/* Convert a (possibly null-terminated) UTF-8 string of at most SRCSIZE
+   bytes (if SRCSIZE is -1, it is ignored) in length to a UTF-16 string.
+   Return the number of characters converted. DEST must be able to hold
+   at least DESTSIZE characters. If an invalid sequence is found, return -1.
+   If SRCEND is not NULL, then *SRCEND is set to the next byte after the
+   last byte used in SRC.  */
+grub_size_t grub_utf8_to_utf16 (grub_uint16_t *dest, grub_size_t destsize,
+		    const grub_uint8_t *src, grub_size_t srcsize,
+		    const grub_uint8_t **srcend);
+grub_size_t
+grub_utf8_to_utf16 (grub_uint16_t *dest, grub_size_t destsize,
+		    const grub_uint8_t *src, grub_size_t srcsize,
+		    const grub_uint8_t **srcend)
+{
+  grub_uint16_t *p = dest;
+  int count = 0;
+  grub_uint32_t code = 0;
+
+  if (srcend)
+    *srcend = src;
+
+  while (srcsize && destsize)
+    {
+      int was_count = count;
+      if (srcsize != (grub_size_t)-1)
+	srcsize--;
+      if (!grub_utf8_process (*src++, &code, &count))
+	{
+	  code = '?';
+	  count = 0;
+	  /* Character c may be valid, don't eat it.  */
+	  if (was_count)
+	    src--;
+	}
+      if (count != 0)
+	continue;
+      if (code == 0)
+	break;
+      if (destsize < 2 && code >= GRUB_UCS2_LIMIT)
+	break;
+      if (code >= GRUB_UCS2_LIMIT)
+	{
+	  *p++ = GRUB_UTF16_UPPER_SURROGATE (code);
+	  *p++ = GRUB_UTF16_LOWER_SURROGATE (code);
+	  destsize -= 2;
+	}
+      else
+	{
+	  *p++ = code;
+	  destsize--;
+	}
+    }
+
+  if (srcend)
+    *srcend = src;
+  return p - dest;
+}
+
+/* Convert UTF-16 to UTF-8.  */
+grub_uint8_t *grub_utf16_to_utf8 (grub_uint8_t *dest, const grub_uint16_t *src, grub_size_t size);
+grub_uint8_t *
+grub_utf16_to_utf8 (grub_uint8_t *dest, const grub_uint16_t *src,
+		    grub_size_t size)
+{
+  grub_uint32_t code_high = 0;
+
+  while (size--)
+    {
+      grub_uint32_t code = *src++;
+
+      if (code_high)
+	{
+	  if (code >= 0xDC00 && code <= 0xDFFF)
+	    {
+	      /* Surrogate pair.  */
+	      code = ((code_high - 0xD800) << 10) + (code - 0xDC00) + 0x10000;
+
+	      *dest++ = (code >> 18) | 0xF0;
+	      *dest++ = ((code >> 12) & 0x3F) | 0x80;
+	      *dest++ = ((code >> 6) & 0x3F) | 0x80;
+	      *dest++ = (code & 0x3F) | 0x80;
+	    }
+	  else
+	    {
+	      /* Error...  */
+	      *dest++ = '?';
+	      /* *src may be valid. Don't eat it.  */
+	      src--;
+	    }
+
+	  code_high = 0;
+	}
+      else
+	{
+	  if (code <= 0x007F)
+	    *dest++ = code;
+	  else if (code <= 0x07FF)
+	    {
+	      *dest++ = (code >> 6) | 0xC0;
+	      *dest++ = (code & 0x3F) | 0x80;
+	    }
+	  else if (code >= 0xD800 && code <= 0xDBFF)
+	    {
+	      code_high = code;
+	      continue;
+	    }
+	  else if (code >= 0xDC00 && code <= 0xDFFF)
+	    {
+	      /* Error... */
+	      *dest++ = '?';
+	    }
+	  else if (code < 0x10000)
+	    {
+	      *dest++ = (code >> 12) | 0xE0;
+	      *dest++ = ((code >> 6) & 0x3F) | 0x80;
+	      *dest++ = (code & 0x3F) | 0x80;
+	    }
+	  else
+	    {
+	      *dest++ = (code >> 18) | 0xF0;
+	      *dest++ = ((code >> 12) & 0x3F) | 0x80;
+	      *dest++ = ((code >> 6) & 0x3F) | 0x80;
+	      *dest++ = (code & 0x3F) | 0x80;
+	    }
+	}
+    }
+
+  return dest;
+}
+
 //-------------------------------------------------------------------------------------
 //kern/efi/mm.c
 
@@ -1448,8 +1586,9 @@ struct efi_allocation {
 	grub_efi_uint64_t pages;              //页			8位
 	struct efi_allocation *next;          //下一个	4位		0=结束符
 };
-static struct efi_allocation *efi_allocated_memory;	//0x14位		静态,地址不变
+
 #if 0
+static struct efi_allocation *efi_allocated_memory;	//0x14位		静态,地址不变
 static void grub_efi_store_alloc (grub_efi_physical_address_t address, grub_efi_uintn_t pages);
 static void 
 grub_efi_store_alloc (grub_efi_physical_address_t address,
@@ -1813,7 +1952,6 @@ filter_memory_map (grub_efi_memory_descriptor_t *memory_map,	//映射起始
   return filtered_desc;
 }
 
-void grub_mm_init_region (void *addr, grub_size_t size);
 //在使用内存堆头部,建立内存头,用于记录将来在堆内分配和释放内存.
 /* Initialize a region starting from ADDR and whose size is SIZE,
    to use it as free space.  从addr开始初始化一个大小为size的区域，将其用作可用空间。*/
@@ -1880,6 +2018,8 @@ grub_mm_init_region (void *addr, grub_size_t size)	//
 }
 
 
+grub_efi_uint64_t memory_pages;
+grub_efi_physical_address_t memory_address;
 //分配一块将来由自己直接分配和释放的内存区域.
 /* Add memory regions. 添加内存区域  */
 static void add_memory_regions (grub_efi_memory_descriptor_t *memory_map, grub_efi_uintn_t desc_size,
@@ -1917,6 +2057,8 @@ add_memory_regions (grub_efi_memory_descriptor_t *memory_map,		//排序后的内
 		    (unsigned) pages);
       break;
     }
+    memory_address = (grub_efi_physical_address_t)(grub_size_t)addr;
+    memory_pages = pages;
 		grub_mm_init_region (addr, PAGES_TO_BYTES (pages)); //初始化内存区域
 		break;
 	}
@@ -1932,9 +2074,24 @@ grub_efi_memory_fini (void) //内存结束
    * list entry (efi_allocated_memory is the list start). Hence we    (efi_allocated_memory是列表开始)
    * remove all entries from the list until none is left altogether.  因此，我们从列表中删除所有条目，直到没有剩下。
    */
-  while (efi_allocated_memory)
-      grub_efi_free_pages (efi_allocated_memory->address,
-                           efi_allocated_memory->pages); //释放页
+//  while (efi_allocated_memory)
+//      grub_efi_free_pages (efi_allocated_memory->address,
+//                           efi_allocated_memory->pages); //释放页
+  grub_efi_free_pages (memory_address, memory_pages); //释放页
+   
+  int drive;
+  struct grub_disk_data *d;
+  grub_efi_boot_services_t *b;
+  for (drive = 0xFF; drive >= 0; drive--)    //从0xff到0
+  {
+    d = get_device_by_drive (drive,0);
+    if (!d)	//避免驱动器不存在时死机
+      continue;
+
+    //卸载映射内存
+    if (d->to_drive == 0xff && d->to_log2_sector != 0xb)  //内存映射
+      efi_call_2 (b->free_pages, d->start_sector << 9, d->sector_count >> 3);	//释放页   2024-09-01
+  } 
 }
 
 #if 0   //打印内存分布
@@ -2301,6 +2458,8 @@ grub_init (void)
   mbr = grub_malloc (0x1000);               //mbr
   disk_buffer = grub_malloc (0x1000);       //磁盘缓存
   disk_fragment_map = grub_zalloc (FRAGMENT_MAP_SLOT_SIZE);  //碎片插槽
+  map_start_sector = grub_zalloc(DRIVE_MAP_FRAGMENT); //(*(grub_size_t **)IMG(0x8308))[36]
+  map_num_sectors = grub_zalloc(DRIVE_MAP_FRAGMENT);
 //buffer=grub_malloc (byte)  分配内存
 //buffer=grub_zalloc (byte)  分配内存, 并清零
 //buffer=grub_memalign (align,byte)  对齐分配内存

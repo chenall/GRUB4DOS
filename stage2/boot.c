@@ -1185,6 +1185,7 @@ next_file1:
 void
 bsd_boot (kernel_t type, int bootdev, char *arg)
 {
+#if 0
   char *str;
   int clval = 0, i;
 
@@ -1321,4 +1322,5 @@ bsd_boot (kernel_t type, int bootdev, char *arg)
       //(*entry_addr) (clval, bootdev, 0, end_mark, extended_memory, (*(unsigned short *)0x413)/*saved_mem_lower*/);
       //multi_boot ((int) entry_addr, clval, bootdev, 0, end_mark, extended_memory, (*(unsigned short *)0x413)/*saved_mem_lower*/);
     }
+#endif
 }

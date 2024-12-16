@@ -1,4 +1,11 @@
 ﻿更新说明：
+2024-12-16 (yaya)
+  支持http网起。
+  例如：map (http)/imgs/pe.iso (cd)
+        chainloader (cd-1)
+        boor
+  例如：/efi/grub/ext/ntboot (http)/imgs/pe.wim
+
 2024-09-01 (yaya)
   修正函数 map --unmap=
   增加参数 map --alloc-only，用于批处理分配自由内存。

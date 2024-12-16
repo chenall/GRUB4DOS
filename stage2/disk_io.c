@@ -1241,6 +1241,32 @@ set_device (char *device)
 	      else if (*(device + 1) == 'd' && !*(device + 2))
 		return device + 2;
 	    }
+    
+    if (pxe_entry && *(device+3) == 'p')
+    {
+      if (grub_memcmp(device,"tftp",4) == 0)
+      {
+        cur_pxe_type = PXE_FILE_TYPE_TFTP;
+        current_drive = PXE_DRIVE;	//0x21
+        device += 4;
+      }
+      else if (grub_memcmp(device,"http",4) == 0)
+      {
+        cur_pxe_type = PXE_FILE_TYPE_HTTP;
+        current_drive = PXE_DRIVE;	//0x21
+        device += 4;
+        if (*(device + 4) == 's')
+        {
+          device++;
+          pxe_http_type = 1;  //https
+        }
+        else
+          pxe_http_type = 0;  //http
+      }
+
+      goto aaa;
+    }
+      
 	  if ((*device == 'f'
 	      || *device == 'h'
 	      || *device == 'm'
@@ -1363,6 +1389,7 @@ set_device (char *device)
 		}
 	    }
 	}
+aaa:
       if (errnum)
 	return 0;
 
@@ -1885,6 +1912,8 @@ grub_open (char *filename)
       }
 #endif
 #endif
+    if (current_drive == 0x21) //2024-12-12
+      goto not_block_file;
 #ifdef NO_BLOCK_FILES
       return !(errnum = ERR_BAD_FILENAME);
 #else
@@ -1979,11 +2008,11 @@ block_file:
 
 #endif /* block files */
     } /* if (*filename != '/') */
-#if 0
-#ifdef FSYS_IPXE
+//#if 0   2024-12-12
+//#ifdef FSYS_IPXE
 not_block_file:
-#endif
-#endif
+//#endif
+//#endif
   if (!errnum && fsys_type == NUM_FSYS)
     errnum = ERR_FSYS_MOUNT;
   /* set "dir" function to open a file */
@@ -2204,7 +2233,10 @@ get_diskinfo (unsigned int drive, struct geometry *geometry, unsigned int partit
 	if (drive == 0xffff || drive == ram_drive)
 	{
 		geometry->sector_size = 512;
-		geometry->total_sectors = -1;
+		if (drive == ram_drive) //2024-12-12
+      geometry->total_sectors = rd_size >> 9;
+		else
+      geometry->total_sectors = -1;
 		geometry->log2_sector_size = 9;
 		return 0;
 	}
@@ -2940,7 +2972,7 @@ grub_SectorSequence_readwrite (int drive, struct fragment *data, unsigned char f
     if (!size)
       return status;
     //确定本碎片还可以访问扇区数
-    if (df->fragment && !fragment_len)  //肯定有碎片, 否则fragment_len=size, 既然len不为零, 则fragment_len也不会为零.
+    if (/*df->fragment && */!fragment_len)  //肯定有碎片, 否则fragment_len=size, 既然len不为零, 则fragment_len也不会为零.  2024-12-12
     {
       sector = data[j].start_sector;
       fragment_len = data[j].sector_count << to_log2;
@@ -3319,7 +3351,6 @@ grub_efidisk_fini (void)		//efidisk结束
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //kern.misc.c
-#if defined(__i386__)
 /*
 计算原理：
 1. 二进制数字和
@@ -3402,7 +3433,7 @@ grub_divmod64 (grub_uint64_t n, grub_uint64_t d, grub_uint64_t *r) //64位除法
 
   return q;
 }
-#endif
+
 #if 0
 grub_uint64_t __umoddi3 (grub_uint64_t a, grub_uint64_t b);
 grub_uint64_t
@@ -3935,7 +3966,7 @@ vpart_install (int drive, struct grub_part_data *part) //安装虚拟分区
   status = efi_call_4 (b->connect_controller, vpart->from_handle, NULL, NULL, TRUE);	//引导服务->连接控制器,要连接驱动程序的控制器的句柄,驱动程序绑定协议的有序列表句柄的指针,指向设备路径的指针,如果为true则递归调用ConnectController（），
   if(status != GRUB_EFI_SUCCESS)
   {
-    printf_errinfo ("failed to install virtual partition: connect_controller.(%x)\n",status);	//无法安装虚拟分区
+    printf_errinfo ("failed to install virtual partition: connect_controller.(%d)\n",(int)status);	//无法安装虚拟分区
 //    return GRUB_EFI_NOT_FOUND;
   }
 
@@ -4048,7 +4079,7 @@ vdisk_install (int drive, int partition)	//安装虚拟磁盘(驱动器号)
 	d->device_handle = vdisk->from_handle;
   if (status != GRUB_EFI_SUCCESS)	//安装失败
   {
-    printf_errinfo ("failed to install virtual disk: install_multiple_protocol_interfaces.(%x)\n",status);	//无法安装虚拟磁盘 
+    printf_errinfo ("failed to install virtual disk: install_multiple_protocol_interfaces.(%d)\n",(int)status);	//无法安装虚拟磁盘 
     return status;
   }
 
@@ -4060,7 +4091,7 @@ vdisk_install (int drive, int partition)	//安装虚拟磁盘(驱动器号)
   status = efi_call_4 (b->connect_controller, vdisk->from_handle, NULL, NULL, TRUE);	//引导服务->连接控制器,要连接驱动程序的控制器的句柄,驱动程序绑定协议的有序列表句柄的指针,指向设备路径的指针,如果为true则递归调用ConnectController（），
   if (status != GRUB_EFI_SUCCESS)	//安装失败
   {
-    printf_errinfo ("failed to install virtual disk: connect_controller.(%x)\n",status);	//无法安装虚拟磁盘 
+    printf_errinfo ("failed to install virtual disk: connect_controller.(%d)\n",(int)status);	//无法安装虚拟磁盘 
     return status;
   }
 
@@ -4859,7 +4890,7 @@ grub_load_image (grub_efi_device_path_t *path, const char *filename, void *boot_
 
   if (status != GRUB_EFI_SUCCESS)	//失败
   {
-    printf_errinfo ("Failed to load virtual disk image.(%x)\n",status);
+    printf_errinfo ("Failed to load virtual disk image.(%d)\n",(int)status);
     boot_image_handle = NULL;
   }
 

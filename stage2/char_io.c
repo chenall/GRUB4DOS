@@ -1506,13 +1506,15 @@ get_cmdline (void)
   return ret;
 }
 
-// Parse decimal or hexadecimal ASCII input string to 64-bit integer
-// input number may have K,M,G,T or k,m,g,t suffix
-// if unitshift is 0, the number is plain number.
+// Parse decimal or hexadecimal ASCII input string to 64-bit integer  将十进制或十六进制ASCII输入字符串解析为64位整数
+// input number may have K,M,G,T or k,m,g,t suffix                    输入数字可以有K、M、G、T或k、m、g、t后缀
+// if unitshift is 0, the number is plain number.                     如果unitshift为0，则该数字为纯数字。
 //  1K=1024, 1M=1048576, 1G=1<<30, 1T=1<<40
-// if unitshift is 9, the input number is number of 512-bytes sectors and suffixes means KBytes, MBytes,...
+// if unitshift is 9, the input number is number of 512-bytes sectors and suffixes means KBytes, MBytes,...  如果unitshift为9，则输入数字是512字节扇区的数量，后缀表示KB，MB
 //  1K=2 sectors, 1M=2048 sectors, ...
-// unitshift must be in the range 0-63
+// unitshift must be in the range 0-63                                unitshift必须在0-63的范围内
+//*str_ptr返回源结束地址
+//会改变*str_ptr值，增大8字节!!!
 int
 safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, int unitshift)
 {

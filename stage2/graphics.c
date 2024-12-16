@@ -1843,7 +1843,7 @@ static int read_image()
 	grub_close();
 	return splashimage_loaded & 0xf;
 }
-
+#if 0
 /* Convert a character which is a hex digit to the appropriate integer */
 int hex (int v);
 int
@@ -1859,7 +1859,7 @@ hex (int v)
 		v += 9;
 	return v & 0xf;
 }
-
+#endif
 
 /* scroll the screen */
 //void bios_scroll_up();
